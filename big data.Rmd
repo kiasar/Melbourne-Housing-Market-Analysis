@@ -1,0 +1,138 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(gridExtra)
+library(tidyr)
+library(cowplot)
+library(kableExtra)
+```
+
+```{r setup2, include=FALSE}
+library(GGally)
+library(ggiraphExtra)
+library(car)
+```
+
+
+```{r,  echo=FALSE}
+raw_csv = read.csv("reg_data.csv")
+raw_csv$LogPrice = log2(raw_csv$Price)
+raw_csv$NormalLogPrice = raw_csv$LogPrice/max(raw_csv$LogPrice)
+
+
+new_csv <- raw_csv %>%
+  filter(Type =="h") %>%
+  select(Price, LogPrice, Rooms, Bathroom, Car, Regionname) %>%
+  filter(Rooms < 10) %>%
+  filter(Bathroom < 5) %>%
+  na.exclude
+
+first_idea <- new_csv %>%
+  select(Price, LogPrice, Rooms, Regionname) %>%
+  na.exclude
+
+first_idea_without_price <- new_csv %>%
+  select(LogPrice, Rooms, Regionname) %>%
+  na.exclude
+
+```
+
+```{r,  echo=FALSE}
+
+sg3 <- ggplot(new_csv, aes(x=LogPrice))+ geom_histogram(aes(y=..density..), color="darkblue", fill="lightblue") + geom_density() +
+  theme(legend.position = "none", axis.title.y=element_blank(), axis.title.x=element_blank(),plot.title = element_text(hjust = 0.8, size = 8)) +
+  ggtitle("Log of prices")
+
+sg3
+
+```
+
+
+```{r,  echo=FALSE}
+
+normal_data <- raw_csv %>%
+  filter(Price < mean(Price) + 2*sqrt(var(Price)) & Price > mean(Price) - 2*sqrt(var(Price)))
+normal_data$LogPrice = log2(normal_data$Price)
+
+```
+
+```{r ,  echo=FALSE}
+
+split_csv <- split(normal_data, normal_data$Regionname)
+
+g1 <- ggplot(mapping = aes(Lattitude, Longtitude, fill = Regionname)) +
+    lapply(split_csv, function(x) stat_density_2d(data = x, breaks = 5, geom = "polygon", alpha = 0.6))+
+  lapply(split_csv, function(x) geom_point(data = x, alpha = 0.7 , aes(color = Price))) +
+  lapply(split_csv, function(x) stat_density_2d(data = x, breaks = 4.9, alpha = 0.3, color = "black"))
+
+g1 <- g1 + theme(text = element_text(size=10),
+           legend.title = element_text(size=15, color = "salmon", face="bold"),
+           legend.justification=c(4.3,0.1), 
+           legend.position=c(0.95, 0.05),  
+           legend.background = element_blank(),
+           legend.key = element_blank(),
+           legend.key.size = unit(0.7, "lines"),
+           plot.margin= unit(c(0, -5, 0, 0), "lines"),
+           axis.text.y = element_text(angle = 90, vjust = 0.5, hjust=0.4),
+           axis.title.y = element_text(vjust = 0),
+           axis.title.x=element_blank()
+           ) + guides(fill = guide_legend(override.aes = list(size = 0.5))) +
+  theme(legend.title = element_text(size = 8), legend.text = element_text(size = 12)) +
+  ylab("Heatmap of prices, over the density of each region")
+```
+```{r ,  echo=FALSE}
+g2 <- ggplot(raw_csv) + geom_violin(aes(x= Regionname, y = LogPrice, group = Regionname, fill = Regionname)) + coord_flip() + 
+  theme(text = element_text(size=12),
+        plot.title = element_text(hjust = 0.5, size = 10),
+        plot.margin= unit(c(0, 0.5, 0, 0), "lines"),
+       legend.position = "none",
+        ) + scale_y_continuous(breaks = seq(0, 30, 0.5)) + labs(title = "Log2 price of each region") + scale_y_continuous(breaks = seq(0, 30, 1)) + scale_x_discrete(limits=c("Southern Metropolitan", "Eastern Metropolitan", "South-Eastern Metropolitan","Northern Metropolitan", "Western Metropolitan", "Eastern Victoria","Northern Victoria","Western Victoria"))
+
+g2 <- g2 +  stat_summary(aes(x= Regionname, y = LogPrice, group = Regionname), geom="pointrange", size = 0.02)
+
+g2
+
+```
+
+```{r,  echo=FALSE}
+
+Temp_csv <- raw_csv %>%
+  select(LogPrice, Rooms, Bathroom, Regionname, Distance, Car, Landsize, BuildingArea, Propertycount, CouncilArea)
+
+  
+sg <- ggcorr(Temp_csv, label = TRUE, nbreaks = 5, size = 4, , label_size = 5, legend.size = 12) + theme(legend.key.size = unit(2.5, "lines"))
+
+sg
+```
+
+```{r,  echo=FALSE}
+s2g <- ggplot(new_csv) + geom_boxplot(aes(x= Rooms, y = LogPrice, group = Rooms, fill = Rooms)) + coord_flip() + 
+  theme(text = element_text(size=12),
+        plot.margin= unit(c(0, 0.5, 0, 0), "lines"),
+        plot.title = element_text(size = 12),
+       legend.position = "none",
+        ) + scale_x_continuous(breaks = seq(0, 30, 1)) + scale_y_continuous(breaks = seq(0, 30, 1)) + labs(title = "Log2 price grouped by rooms") + scale_y_continuous(breaks = seq(0, 30, 1))
+
+s2g <- s2g +  stat_summary(aes(x= Rooms, y = LogPrice, group = Rooms), geom="pointrange", size = 0.02)
+
+s2g
+
+```
+
+```{r,  echo=FALSE}
+s2g <- ggplot(new_csv) + geom_boxplot(aes(x= Bathroom, y = LogPrice, group = Bathroom, fill = Bathroom)) + coord_flip() + 
+  theme(text = element_text(size=12),
+        plot.margin= unit(c(0, 0.5, 0, 0), "lines"),
+        plot.title = element_text(size = 12),
+       legend.position = "none",
+        ) + scale_x_continuous(breaks = seq(0, 30, 1)) + scale_y_continuous(breaks = seq(0, 30, 1)) + labs(title = "Log2 price grouped by bathrooms") + scale_y_continuous(breaks = seq(0, 30, 1))
+
+s2g <- s2g +  stat_summary(aes(x= Bathroom, y = LogPrice, group = Bathroom), geom="pointrange", size = 0.02)
+
+s2g
+
+```
